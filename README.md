@@ -1,11 +1,11 @@
-# Chatbot local con Ollama
+# Agente local con Ollama
 
-Chatbot por consola que se ejecuta completamente en local usando [Ollama](https://ollama.com/) como backend de inferencia. No requiere conexion a internet ni APIs externas una vez descargado el modelo.
+Agente conversacional por consola que se ejecuta en local usando [Ollama](https://ollama.com/) como backend de inferencia. El agente puede usar herramientas (tools) de forma autonoma: leer y escribir archivos, listar directorios y buscar en internet.
 
 ## Requisitos previos
 
 - **Python 3.10+**
-- **Ollama** instalado y corriendo en la maquina local.
+- **Ollama** instalado y corriendo.
 
 ### Instalar Ollama
 
@@ -19,13 +19,13 @@ ollama serve
 
 ### Descargar el modelo
 
-El chatbot usa por defecto el modelo `phi3:3.8b`. Para descargarlo:
+El agente usa por defecto el modelo `qwen2.5:7b` (soporta tool calling nativo). Para descargarlo:
 
 ```bash
-ollama pull phi3:3.8b
+ollama pull qwen2.5:7b
 ```
 
-Puedes usar cualquier otro modelo disponible en Ollama cambiando la variable `DEFAULT_MODEL` en `main.py`.
+Puedes usar otro modelo con soporte de tool calling cambiando `DEFAULT_MODEL` en `main.py`. Modelos compatibles: `qwen2.5`, `llama3.1`, `mistral`, entre otros.
 
 ## Instalacion
 
@@ -56,51 +56,87 @@ pip install -r requirements.txt
 
 ## Uso
 
-Ejecuta el chatbot:
+Ejecuta el agente:
 
 ```bash
 python main.py
 ```
 
-Aparecera un prompt interactivo en la consola. Escribe tu mensaje y pulsa Enter para recibir la respuesta del modelo. Las respuestas se muestran en tiempo real mediante streaming.
+Escribe tu mensaje y pulsa Enter. El agente decidira si necesita usar una herramienta o si puede responder directamente. Las respuestas finales se muestran en streaming.
 
 Para salir, escribe `salir`, `exit` o `quit`, o pulsa `Ctrl+C`.
 
 ### Ejemplo de sesion
 
 ```
-Chatbot local con Ollama — modelo: phi3:3.8b
+Agente local con Ollama — modelo: qwen2.5:7b
 Escribe 'salir' o 'exit' para terminar.
 
-Tu: Hola, quien eres?
-Bot: Soy un asistente virtual. Estoy aqui para ayudarte en lo que necesites.
-Tu: Que es Python?
+Tu: lee el archivo requirements.txt
+  [tool] read_file({'path': 'requirements.txt'})
+Bot: El archivo requirements.txt contiene una unica dependencia: ollama
+
+Tu: crea un archivo test.txt con el texto "hola mundo"
+  [tool] write_file({'path': 'test.txt', 'content': 'hola mundo'})
+Bot: He creado el archivo test.txt con el contenido "hola mundo".
+
+Tu: que archivos hay en el directorio actual?
+  [tool] list_directory({'path': '.'})
+Bot: En el directorio actual hay los siguientes archivos: main.py, agent.py, ...
+
+Tu: que es Python?
 Bot: Python es un lenguaje de programacion de alto nivel, interpretado y de proposito general...
-Tu: salir
-Saliendo del chat.
 ```
+
+## Herramientas disponibles
+
+| Herramienta | Descripcion |
+|---|---|
+| `read_file` | Lee el contenido de un archivo local |
+| `write_file` | Escribe contenido en un archivo local |
+| `list_directory` | Lista el contenido de un directorio |
+| `web_search` | Busca en internet usando DuckDuckGo (devuelve titulo, snippet y URL) |
+| `run_python` | Ejecuta codigo Python en un subprocess aislado con timeout de 10s |
+| `search_documents` | Busca en la base de conocimiento local (RAG) los fragmentos mas relevantes |
+
+Las herramientas de archivos estan restringidas al directorio de trabajo actual por seguridad. La busqueda web requiere conexion a internet. La busqueda de documentos requiere haber indexado documentos previamente.
 
 ## Funcionamiento
 
-El chatbot funciona de la siguiente manera:
+1. **Agent loop**: El agente usa un bucle iterativo. Envia el mensaje del usuario al LLM junto con las definiciones de herramientas disponibles. Si el modelo decide usar una herramienta, el agente la ejecuta y le devuelve el resultado. Este ciclo se repite hasta que el modelo genera una respuesta de texto final.
 
-1. **Conexion con Ollama**: Al iniciar, verifica que el servicio de Ollama este corriendo. Si no lo esta, muestra un mensaje de error y termina.
+2. **Tool calling nativo**: Usa el soporte nativo de tool calling de Ollama (no prompt engineering). El modelo recibe las herramientas como JSON Schema y responde con llamadas estructuradas cuando las necesita.
 
-2. **System prompt**: Cada conversacion incluye un prompt de sistema que define el comportamiento del asistente (idioma, tono, honestidad).
+3. **Historial de conversacion**: Los mensajes se acumulan durante la sesion para mantener el contexto.
 
-3. **Historial de conversacion**: Todos los mensajes (del usuario y del bot) se almacenan en memoria durante la sesion. Esto permite que el modelo tenga contexto de lo que se ha dicho anteriormente y pueda mantener una conversacion coherente.
+4. **Streaming**: Las respuestas finales se muestran token a token en tiempo real.
 
-4. **Streaming**: Las respuestas del modelo se muestran token a token en tiempo real, en lugar de esperar a que se genere la respuesta completa.
+5. **Manejo de errores**: Verifica la conexion con Ollama al inicio. Los errores en herramientas se capturan y se informan al modelo para que pueda responder adecuadamente.
 
-5. **Manejo de errores**: Si ocurre un error durante la comunicacion con el modelo, se muestra un mensaje descriptivo y el chat continua funcionando.
+6. **RAG (Retrieval-Augmented Generation)**: El agente puede consultar una base de conocimiento local. Los documentos se dividen en fragmentos (chunks), se generan embeddings con Ollama y se almacenan en ChromaDB. Cuando el agente usa `search_documents`, busca los fragmentos mas relevantes por similitud semantica.
 
 ## Estructura del proyecto
 
 ```
 chatbot/
-  main.py             # Logica principal del chatbot
-  requirements.txt    # Dependencias de Python
-  README.md           # Este archivo
+  main.py              # Entry point, CLI
+  agent.py             # Agent loop
+  tools/
+    __init__.py
+    base.py            # Tool registry (dataclass + registro)
+    file_tools.py      # read_file, write_file, list_directory
+    web_tools.py       # web_search
+    code_tools.py      # run_python
+    rag_tools.py       # search_documents
+  rag/
+    __init__.py
+    chunker.py         # Divide documentos en fragmentos
+    ingest.py          # Indexa documentos en ChromaDB
+  documents/           # Carpeta para documentos del usuario
+  chroma_db/           # Base de datos vectorial (generada automaticamente)
+  requirements.txt
+  README.md
+  .gitignore
 ```
 
 ## Configuracion
@@ -108,7 +144,64 @@ chatbot/
 Para cambiar el modelo, edita la constante `DEFAULT_MODEL` en `main.py`:
 
 ```python
-DEFAULT_MODEL = "llama3:8b"  # o cualquier modelo disponible en Ollama
+DEFAULT_MODEL = "llama3.1:8b"  # debe soportar tool calling
 ```
 
-Para modificar el comportamiento del asistente, edita la constante `SYSTEM_PROMPT` en `main.py`.
+Para modificar el comportamiento del agente, edita `SYSTEM_PROMPT` en `agent.py`.
+
+## RAG: Base de conocimiento local
+
+Puedes hacer que el agente consulte tus propios documentos (PDFs, archivos de texto, Markdown).
+
+### Indexar documentos
+
+1. Coloca los archivos en la carpeta `documents/`.
+2. Ejecuta el script de ingesta:
+
+```bash
+python -m rag.ingest
+```
+
+Esto leera cada archivo, lo dividira en fragmentos, generara embeddings con Ollama y los almacenara en una base de datos vectorial local (ChromaDB en `chroma_db/`).
+
+### Consultar documentos
+
+Una vez indexados, simplemente pregunta al agente sobre el contenido de tus documentos. El agente decidira automaticamente cuando usar `search_documents` para buscar fragmentos relevantes.
+
+### Reindexar
+
+Si modificas o agregas documentos, ejecuta `python -m rag.ingest` de nuevo. La base de datos se reconstruye cada vez.
+
+### Formatos soportados
+
+- `.pdf` — Texto extraido con pypdf (no soporta OCR para PDFs escaneados)
+- `.txt` — Texto plano
+- `.md` — Markdown
+
+## Anadir nuevas herramientas
+
+1. Crea la funcion Python en un archivo dentro de `tools/`.
+2. Define un objeto `Tool` con nombre, descripcion, parametros (JSON Schema) y la funcion.
+3. Registra la tool en `create_registry()` dentro de `main.py`.
+
+Ejemplo:
+
+```python
+from tools.base import Tool
+
+def my_tool(param: str) -> str:
+    return f"resultado: {param}"
+
+my_tool_def = Tool(
+    name="my_tool",
+    description="Description of what this tool does.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "param": {"type": "string", "description": "..."}
+        },
+        "required": ["param"],
+    },
+    function=my_tool,
+)
+```

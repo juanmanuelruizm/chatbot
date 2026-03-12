@@ -1,1 +1,4 @@
 ollama
+duckduckgo-search
+chromadb
+pypdf

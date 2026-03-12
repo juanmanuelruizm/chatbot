@@ -3,13 +3,14 @@ import sys
 
 import ollama
 
-SYSTEM_PROMPT = (
-    "You are a friendly and concise virtual assistant. "
-    "Always respond in the same language the user writes in. "
-    "If you don't know something, say so honestly."
-)
+from agent import agent_loop
+from tools.base import ToolRegistry
+from tools.file_tools import list_directory_tool, read_file_tool, write_file_tool
+from tools.code_tools import run_python_tool
+from tools.rag_tools import search_documents_tool
+from tools.web_tools import web_search_tool
 
-DEFAULT_MODEL = "phi3:3.8b"
+DEFAULT_MODEL = "qwen2.5:7b"
 
 
 def check_ollama_connection():
@@ -22,40 +23,26 @@ def check_ollama_connection():
         sys.exit(1)
 
 
-def build_messages(history: list[dict], user_message: str) -> list[dict]:
-    """Construye la lista de mensajes incluyendo el system prompt y el historial."""
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
-    return messages
-
-
-def chat_stream(messages: list[dict], model: str = DEFAULT_MODEL) -> str:
-    """Envia los mensajes al modelo y muestra la respuesta en streaming."""
-    full_response = ""
-    try:
-        stream = ollama.chat(model=model, messages=messages, stream=True)
-        for chunk in stream:
-            token = chunk["message"]["content"]
-            print(token, end="", flush=True)
-            full_response += token
-        print()
-    except ollama.ResponseError as e:
-        print(f"\nError del modelo: {e}")
-        return ""
-    except Exception as e:
-        print(f"\nError inesperado: {e}")
-        return ""
-    return full_response
+def create_registry() -> ToolRegistry:
+    """Crea el registro de tools con todas las tools disponibles."""
+    registry = ToolRegistry()
+    registry.register(read_file_tool)
+    registry.register(write_file_tool)
+    registry.register(list_directory_tool)
+    registry.register(web_search_tool)
+    registry.register(run_python_tool)
+    registry.register(search_documents_tool)
+    return registry
 
 
 def main():
     model = DEFAULT_MODEL
-    print(f"Chatbot local con Ollama — modelo: {model}")
+    print(f"Agente local con Ollama — modelo: {model}")
     print("Escribe 'salir' o 'exit' para terminar.\n")
 
     check_ollama_connection()
 
+    registry = create_registry()
     history: list[dict] = []
 
     while True:
@@ -72,10 +59,8 @@ def main():
             print("Saliendo del chat.")
             break
 
-        messages = build_messages(history, user_message)
-
         print("Bot: ", end="")
-        bot_response = chat_stream(messages, model=model)
+        bot_response = agent_loop(user_message, history, registry, model)
 
         if bot_response:
             history.append({"role": "user", "content": user_message})
