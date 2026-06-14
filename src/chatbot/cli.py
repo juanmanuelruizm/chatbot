@@ -1,19 +1,23 @@
+"""Punto de entrada: interfaz de línea de comandos del agente."""
 
 import sys
 
 import ollama
 
-from agent import agent_loop
-from tools.base import ToolRegistry
-from tools.file_tools import list_directory_tool, read_file_tool, write_file_tool
-from tools.code_tools import run_python_tool
-from tools.rag_tools import search_documents_tool
-from tools.web_tools import web_search_tool
+from chatbot.agent import agent_loop
+from chatbot.config import settings
+from chatbot.tools.base import ToolRegistry
+from chatbot.tools.code_tools import run_python_tool
+from chatbot.tools.file_tools import (
+    list_directory_tool,
+    read_file_tool,
+    write_file_tool,
+)
+from chatbot.tools.rag_tools import search_documents_tool
+from chatbot.tools.web_tools import web_search_tool
 
-DEFAULT_MODEL = "qwen2.5:7b"
 
-
-def check_ollama_connection():
+def check_ollama_connection() -> None:
     """Verifica que Ollama este corriendo y el modelo disponible."""
     try:
         ollama.list()
@@ -35,8 +39,8 @@ def create_registry() -> ToolRegistry:
     return registry
 
 
-def main():
-    model = DEFAULT_MODEL
+def main() -> None:
+    model = settings.model
     print(f"Agente local con Ollama — modelo: {model}")
     print("Escribe 'salir' o 'exit' para terminar.\n")
 

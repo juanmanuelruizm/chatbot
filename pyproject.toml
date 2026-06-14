@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chatbot"
+version = "0.2.0"
+description = "Agente conversacional local con Ollama y tool calling (ficheros, web, código, RAG)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Juan Manuel Ruiz Muñoz" }]
+keywords = ["ollama", "llm", "agent", "tool-calling", "rag", "cli"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+]
+dependencies = [
+    "ollama",
+    "duckduckgo-search",
+    "chromadb",
+    "pypdf",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.scripts]
+chatbot = "chatbot.cli:main"
+chatbot-ingest = "chatbot.rag.ingest:ingest_documents"
+
+[project.urls]
+Homepage = "https://github.com/juanmanuelruizm/chatbot"
+Repository = "https://github.com/juanmanuelruizm/chatbot"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

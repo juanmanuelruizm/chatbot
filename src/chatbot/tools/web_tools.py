@@ -1,15 +1,14 @@
 from duckduckgo_search import DDGS
 
-from tools.base import Tool
-
-MAX_RESULTS = 5
+from chatbot.config import settings
+from chatbot.tools.base import Tool
 
 
 def web_search(query: str) -> str:
     """Busca en internet usando DuckDuckGo y devuelve los resultados."""
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=MAX_RESULTS))
+            results = list(ddgs.text(query, max_results=settings.web_max_results))
     except Exception as e:
         return f"Error during web search: {e}"
 
@@ -28,7 +27,10 @@ def web_search(query: str) -> str:
 
 web_search_tool = Tool(
     name="web_search",
-    description="Search the internet using DuckDuckGo. Returns the top results with title, snippet and URL.",
+    description=(
+        "Search the internet using DuckDuckGo. Returns the top results with "
+        "title, snippet and URL."
+    ),
     parameters={
         "type": "object",
         "properties": {

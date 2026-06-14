@@ -1,19 +1,24 @@
 import os
+from pathlib import Path
 
-from tools.base import Tool
-
-# Directorio base permitido (el directorio de trabajo actual)
-ALLOWED_BASE_DIR = os.path.abspath(".")
+from chatbot.config import settings
+from chatbot.tools.base import Tool
 
 
 def _safe_resolve(path: str) -> str:
-    """Resuelve un path y verifica que esté dentro del directorio permitido."""
-    resolved = os.path.abspath(path)
-    if not resolved.startswith(ALLOWED_BASE_DIR):
+    """Resuelve un path y verifica que esté dentro del directorio permitido.
+
+    Usa comparación de rutas (no de prefijos de cadena) para evitar que un
+    directorio hermano con el mismo prefijo (p. ej. ``/work-evil`` frente a
+    ``/work``) burle el sandbox.
+    """
+    base = settings.allowed_base_dir
+    resolved = Path(path).resolve()
+    if resolved != base and base not in resolved.parents:
         raise PermissionError(
             f"Access denied: path '{path}' is outside the allowed directory."
         )
-    return resolved
+    return str(resolved)
 
 
 def read_file(path: str) -> str:
@@ -26,7 +31,10 @@ def read_file(path: str) -> str:
 
 
 def write_file(path: str, content: str) -> str:
-    """Escribe contenido en un archivo local. Crea directorios intermedios si no existen."""
+    """Escribe contenido en un archivo local.
+
+    Crea los directorios intermedios si no existen.
+    """
     safe_path = _safe_resolve(path)
     os.makedirs(os.path.dirname(safe_path) or ".", exist_ok=True)
     with open(safe_path, "w", encoding="utf-8") as f:
@@ -65,7 +73,10 @@ read_file_tool = Tool(
 
 write_file_tool = Tool(
     name="write_file",
-    description="Write content to a file at the given path. Creates the file if it doesn't exist, overwrites if it does.",
+    description=(
+        "Write content to a file at the given path. Creates the file if it "
+        "doesn't exist, overwrites if it does."
+    ),
     parameters={
         "type": "object",
         "properties": {
@@ -91,7 +102,9 @@ list_directory_tool = Tool(
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path to the directory to list. Defaults to current directory.",
+                "description": (
+                    "Path to the directory to list. Defaults to current directory."
+                ),
             }
         },
         "required": [],

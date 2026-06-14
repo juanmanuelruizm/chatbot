@@ -1,8 +1,23 @@
+# Entornos virtuales
 venv/
+.venv/
+
+# Variables de entorno
 .env
+
+# Cachés y artefactos de Python
 __pycache__/
 *.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Base de datos vectorial generada
 chroma_db/
+
+# Documentos del usuario (no versionar contenido privado)
 documents/*.pdf
 documents/*.txt
 documents/*.md

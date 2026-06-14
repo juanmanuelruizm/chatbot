@@ -1,7 +1,6 @@
-from tools.base import Tool
-from rag.ingest import get_collection, get_embedding
-
-TOP_K = 5
+from chatbot.config import settings
+from chatbot.rag.ingest import get_collection, get_embedding
+from chatbot.tools.base import Tool
 
 
 def search_documents(query: str) -> str:
@@ -12,13 +11,16 @@ def search_documents(query: str) -> str:
         return f"Error accessing document database: {e}"
 
     if collection.count() == 0:
-        return "No documents indexed yet. Run 'python -m rag.ingest' to index documents from the documents/ folder."
+        return (
+            "No documents indexed yet. Run 'python -m chatbot.rag.ingest' to "
+            "index documents from the documents/ folder."
+        )
 
     try:
         query_embedding = get_embedding(query)
         results = collection.query(
             query_embeddings=[query_embedding],
-            n_results=min(TOP_K, collection.count()),
+            n_results=min(settings.rag_top_k, collection.count()),
         )
     except Exception as e:
         return f"Error searching documents: {e}"
@@ -28,7 +30,7 @@ def search_documents(query: str) -> str:
 
     output = []
     for i, (doc, meta) in enumerate(
-        zip(results["documents"][0], results["metadatas"][0]), 1
+        zip(results["documents"][0], results["metadatas"][0], strict=False), 1
     ):
         source = meta.get("source", "unknown")
         output.append(f"[{i}] (source: {source})\n{doc}")
@@ -38,7 +40,10 @@ def search_documents(query: str) -> str:
 
 search_documents_tool = Tool(
     name="search_documents",
-    description="Search the local knowledge base for document fragments relevant to a query. Documents must be indexed first with 'python -m rag.ingest'.",
+    description=(
+        "Search the local knowledge base for document fragments relevant to a "
+        "query. Documents must be indexed first with 'python -m chatbot.rag.ingest'."
+    ),
     parameters={
         "type": "object",
         "properties": {

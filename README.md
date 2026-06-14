@@ -29,7 +29,7 @@ El agente usa por defecto el modelo `qwen2.5:7b` (soporta tool calling nativo). 
 ollama pull qwen2.5:7b
 ```
 
-Puedes usar otro modelo con soporte de tool calling cambiando `DEFAULT_MODEL` en `main.py`. Modelos compatibles: `qwen2.5`, `llama3.1`, `mistral`, entre otros.
+Puedes usar otro modelo con soporte de tool calling mediante la variable de entorno `CHATBOT_MODEL` (ver [Configuración](#configuración)). Modelos compatibles: `qwen2.5`, `llama3.1`, `mistral`, entre otros.
 
 ## Instalación
 
@@ -52,7 +52,13 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-3. Instala las dependencias:
+3. Instala el proyecto (recomendado, deja disponibles los comandos `chatbot` y `chatbot-ingest`):
+
+```bash
+pip install -e .
+```
+
+Alternativamente, si solo quieres las dependencias de runtime:
 
 ```bash
 pip install -r requirements.txt
@@ -63,7 +69,9 @@ pip install -r requirements.txt
 Ejecuta el agente:
 
 ```bash
-python main.py
+chatbot
+# o, de forma equivalente:
+python -m chatbot
 ```
 
 Escribe tu mensaje y pulsa Enter. El agente decidirá si necesita usar una herramienta o si puede responder directamente. Las respuestas finales se muestran en streaming.
@@ -78,7 +86,7 @@ Escribe 'salir' o 'exit' para terminar.
 
 Tu: lee el archivo requirements.txt
   [tool] read_file({'path': 'requirements.txt'})
-Bot: El archivo requirements.txt contiene una única dependencia: ollama
+Bot: El archivo requirements.txt contiene las dependencias del proyecto: ollama, ...
 
 Tu: crea un archivo test.txt con el texto "hola mundo"
   [tool] write_file({'path': 'test.txt', 'content': 'hola mundo'})
@@ -86,7 +94,7 @@ Bot: He creado el archivo test.txt con el contenido "hola mundo".
 
 Tu: que archivos hay en el directorio actual?
   [tool] list_directory({'path': '.'})
-Bot: En el directorio actual hay los siguientes archivos: main.py, agent.py, ...
+Bot: En el directorio actual hay los siguientes archivos: pyproject.toml, README.md, src, tests, ...
 
 Tu: que es Python?
 Bot: Python es un lenguaje de programacion de alto nivel, interpretado y de proposito general...
@@ -121,37 +129,72 @@ Las herramientas de archivos están restringidas al directorio de trabajo actual
 
 ## Estructura del proyecto
 
+El proyecto sigue un *src layout* estándar, con el código de la aplicación en un paquete instalable:
+
 ```
 chatbot/
-  main.py              # Entry point, CLI
-  agent.py             # Agent loop
-  tools/
+  src/chatbot/
     __init__.py
-    base.py            # Tool registry (dataclass + registro)
-    file_tools.py      # read_file, write_file, list_directory
-    web_tools.py       # web_search
-    code_tools.py      # run_python
-    rag_tools.py       # search_documents
-  rag/
-    __init__.py
-    chunker.py         # Divide documentos en fragmentos
-    ingest.py          # Indexa documentos en ChromaDB
+    __main__.py        # python -m chatbot
+    cli.py             # Entry point, bucle de la CLI
+    agent.py           # Agent loop
+    config.py          # Configuración central (variables de entorno / .env)
+    tools/
+      __init__.py
+      base.py          # Tool registry (dataclass + registro)
+      file_tools.py    # read_file, write_file, list_directory
+      web_tools.py     # web_search
+      code_tools.py    # run_python
+      rag_tools.py     # search_documents
+    rag/
+      __init__.py
+      chunker.py       # Divide documentos en fragmentos
+      ingest.py        # Indexa documentos en ChromaDB
+  tests/               # Tests unitarios (pytest)
   documents/           # Carpeta para documentos del usuario
   chroma_db/           # Base de datos vectorial (generada automáticamente)
+  pyproject.toml       # Metadatos, dependencias y configuración de tooling
   requirements.txt
+  .env.example         # Plantilla de configuración
+  LICENSE
   README.md
   .gitignore
 ```
 
 ## Configuración
 
-Para cambiar el modelo, edita la constante `DEFAULT_MODEL` en `main.py`:
+Toda la configuración está centralizada en `src/chatbot/config.py` y puede ajustarse mediante variables de entorno, opcionalmente a través de un fichero `.env` en la raíz del proyecto. Copia la plantilla para empezar:
 
-```python
-DEFAULT_MODEL = "llama3.1:8b"  # debe soportar tool calling
+```bash
+cp .env.example .env
 ```
 
-Para modificar el comportamiento del agente, edita `SYSTEM_PROMPT` en `agent.py`.
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `CHATBOT_MODEL` | `qwen2.5:7b` | Modelo de Ollama (debe soportar tool calling) |
+| `CHATBOT_EMBEDDING_MODEL` | `qwen2.5:7b` | Modelo usado para generar embeddings (RAG) |
+| `CHATBOT_MAX_TOOL_ROUNDS` | `10` | Máximo de iteraciones de herramientas por turno |
+| `CHATBOT_WEB_MAX_RESULTS` | `5` | Resultados máximos de la búsqueda web |
+| `CHATBOT_CODE_TIMEOUT` | `10` | Timeout (s) de ejecución de código Python |
+| `CHATBOT_RAG_TOP_K` | `5` | Fragmentos recuperados por consulta RAG |
+| `CHATBOT_CHUNK_SIZE` | `500` | Tamaño de chunk (caracteres) en la ingesta |
+| `CHATBOT_CHUNK_OVERLAP` | `100` | Solapamiento entre chunks |
+| `CHATBOT_COLLECTION` | `documents` | Nombre de la colección en ChromaDB |
+| `CHATBOT_DOCUMENTS_DIR` | `documents/` | Carpeta de documentos a indexar |
+| `CHATBOT_CHROMA_DIR` | `chroma_db/` | Ruta de la base de datos vectorial |
+| `CHATBOT_ALLOWED_BASE_DIR` | directorio actual | Sandbox de las tools de ficheros |
+
+Para modificar el comportamiento del agente, edita `SYSTEM_PROMPT` en `src/chatbot/agent.py`.
+
+## Tests
+
+El proyecto incluye tests unitarios (que no requieren Ollama ni conexión a internet):
+
+```bash
+pip install -e ".[dev]"
+pytest
+ruff check .
+```
 
 ## RAG: Base de conocimiento local
 
@@ -163,7 +206,7 @@ Puedes hacer que el agente consulte tus propios documentos (PDFs, archivos de te
 2. Ejecuta el script de ingesta:
 
 ```bash
-python -m rag.ingest
+python -m chatbot.rag.ingest   # o, de forma equivalente: chatbot-ingest
 ```
 
 Esto leerá cada archivo, lo dividirá en fragmentos, generará embeddings con Ollama y los almacenará en una base de datos vectorial local (ChromaDB en `chroma_db/`).
@@ -174,7 +217,7 @@ Una vez indexados, simplemente pregunta al agente sobre el contenido de tus docu
 
 ### Reindexar
 
-Si modificas o agregas documentos, ejecuta `python -m rag.ingest` de nuevo. La base de datos se reconstruye cada vez.
+Si modificas o agregas documentos, ejecuta `python -m chatbot.rag.ingest` (o `chatbot-ingest`) de nuevo. La base de datos se reconstruye cada vez.
 
 ### Formatos soportados
 
@@ -184,14 +227,14 @@ Si modificas o agregas documentos, ejecuta `python -m rag.ingest` de nuevo. La b
 
 ## Añadir nuevas herramientas
 
-1. Crea la función Python en un archivo dentro de `tools/`.
+1. Crea la función Python en un archivo dentro de `src/chatbot/tools/`.
 2. Define un objeto `Tool` con nombre, descripción, parámetros (JSON Schema) y la función.
-3. Registra la tool en `create_registry()` dentro de `main.py`.
+3. Registra la tool en `create_registry()` dentro de `src/chatbot/cli.py`.
 
 Ejemplo:
 
 ```python
-from tools.base import Tool
+from chatbot.tools.base import Tool
 
 def my_tool(param: str) -> str:
     return f"resultado: {param}"
