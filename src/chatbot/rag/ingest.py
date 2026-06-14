@@ -5,12 +5,13 @@ import chromadb
 import ollama
 from pypdf import PdfReader
 
-from rag.chunker import chunk_text
+from chatbot.config import settings
+from chatbot.rag.chunker import chunk_text
 
-DOCUMENTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "documents")
-CHROMA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "chroma_db")
-COLLECTION_NAME = "documents"
-EMBEDDING_MODEL = "qwen2.5:7b"
+DOCUMENTS_DIR = str(settings.documents_dir)
+CHROMA_DIR = str(settings.chroma_dir)
+COLLECTION_NAME = settings.collection_name
+EMBEDDING_MODEL = settings.embedding_model
 
 
 def extract_text(filepath: str) -> str:
@@ -41,7 +42,11 @@ def get_collection() -> chromadb.Collection:
 
 
 def ingest_documents():
-    """Lee todos los documentos de la carpeta documents/, los divide en chunks y los almacena en ChromaDB."""
+    """Indexa los documentos de la carpeta ``documents/`` en ChromaDB.
+
+    Lee cada archivo, lo divide en chunks, genera embeddings con Ollama y los
+    almacena en la base de datos vectorial.
+    """
     if not os.path.isdir(DOCUMENTS_DIR):
         print(f"Error: la carpeta '{DOCUMENTS_DIR}' no existe.")
         print("Creala y coloca tus documentos ahi.")
@@ -54,7 +59,10 @@ def ingest_documents():
     ]
 
     if not files:
-        print("No se encontraron documentos (.pdf, .txt, .md) en la carpeta documents/.")
+        print(
+            "No se encontraron documentos (.pdf, .txt, .md) en la carpeta "
+            "documents/."
+        )
         return
 
     collection = get_collection()
@@ -73,7 +81,7 @@ def ingest_documents():
 
         text = extract_text(filepath)
         if not text.strip():
-            print(f"  Sin contenido, saltando.")
+            print("  Sin contenido, saltando.")
             continue
 
         chunks = chunk_text(text)
@@ -92,7 +100,10 @@ def ingest_documents():
 
         total_chunks += len(chunks)
 
-    print(f"\nIngesta completada: {len(files)} archivos, {total_chunks} chunks totales.")
+    print(
+        f"\nIngesta completada: {len(files)} archivos, "
+        f"{total_chunks} chunks totales."
+    )
 
 
 if __name__ == "__main__":

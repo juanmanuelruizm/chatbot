@@ -1,12 +1,21 @@
-CHUNK_SIZE = 500  # caracteres por chunk
-CHUNK_OVERLAP = 100  # solapamiento entre chunks
+from chatbot.config import settings
 
 
-def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
+def chunk_text(
+    text: str,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
+) -> list[str]:
     """
     Divide un texto en fragmentos de tamano aproximado chunk_size
     con solapamiento para no perder contexto entre chunks.
+
+    Si ``chunk_size`` u ``overlap`` son ``None``, se toman los valores de la
+    configuración (``CHATBOT_CHUNK_SIZE`` / ``CHATBOT_CHUNK_OVERLAP``).
     """
+    chunk_size = settings.chunk_size if chunk_size is None else chunk_size
+    overlap = settings.chunk_overlap if overlap is None else overlap
+
     if len(text) <= chunk_size:
         return [text]
 

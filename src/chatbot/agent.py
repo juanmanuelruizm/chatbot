@@ -1,6 +1,7 @@
 import ollama
 
-from tools.base import ToolRegistry
+from chatbot.config import settings
+from chatbot.tools.base import ToolRegistry
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant with access to tools. "
@@ -9,8 +10,6 @@ SYSTEM_PROMPT = (
     "If you don't know something and no tool can help, say so honestly. "
     "When you use a tool, explain briefly what you did and share the result."
 )
-
-MAX_TOOL_ROUNDS = 10  # Limite de iteraciones para evitar bucles infinitos
 
 
 def build_messages(history: list[dict], user_message: str) -> list[dict]:
@@ -37,7 +36,7 @@ def agent_loop(
     messages = build_messages(history, user_message)
     tools = registry.list_schemas()
 
-    for _ in range(MAX_TOOL_ROUNDS):
+    for _ in range(settings.max_tool_rounds):
         response = ollama.chat(model=model, messages=messages, tools=tools)
         msg = response["message"]
 

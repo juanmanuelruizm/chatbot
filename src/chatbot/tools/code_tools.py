@@ -1,9 +1,8 @@
 import subprocess
 import sys
 
-from tools.base import Tool
-
-TIMEOUT_SECONDS = 10
+from chatbot.config import settings
+from chatbot.tools.base import Tool
 
 
 def run_python(code: str) -> str:
@@ -13,7 +12,7 @@ def run_python(code: str) -> str:
             [sys.executable, "-c", code],
             capture_output=True,
             text=True,
-            timeout=TIMEOUT_SECONDS,
+            timeout=settings.code_timeout_seconds,
         )
         output = ""
         if result.stdout:
@@ -24,14 +23,21 @@ def run_python(code: str) -> str:
             output = "(no output)"
         return output.strip()
     except subprocess.TimeoutExpired:
-        return f"Error: execution timed out after {TIMEOUT_SECONDS} seconds."
+        return (
+            f"Error: execution timed out after "
+            f"{settings.code_timeout_seconds} seconds."
+        )
     except Exception as e:
         return f"Error executing code: {e}"
 
 
 run_python_tool = Tool(
     name="run_python",
-    description="Execute a Python code snippet and return its stdout and stderr. The code runs in an isolated subprocess with a 10-second timeout.",
+    description=(
+        "Execute a Python code snippet and return its stdout and stderr. "
+        f"The code runs in an isolated subprocess with a "
+        f"{settings.code_timeout_seconds}-second timeout."
+    ),
     parameters={
         "type": "object",
         "properties": {

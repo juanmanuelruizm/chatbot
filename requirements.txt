@@ -1,4 +1,7 @@
+# Dependencias de runtime. Para una instalación completa (incluyendo el
+# comando `chatbot`), usa: pip install -e .
 ollama
 duckduckgo-search
 chromadb
 pypdf
+python-dotenv
